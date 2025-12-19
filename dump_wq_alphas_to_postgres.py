@@ -23,78 +23,69 @@ ALPHAS_URL = "https://api.worldquantbrain.com/users/self/alphas"
 def get_conn():
     return psycopg2.connect(POSTGRES_DSN)
 
-# ========== WQ API ==========
+MAX_OFFSET = 1000   # 保守一点
+
 def list_alphas(wq: WQClient, limit: int = 500) -> List[Dict[str, Any]]:
-    """
-    拉取你的 alpha 列表（分页）。
-    """
-    out: List[Dict[str, Any]] = []
+    out = []
     offset = 0
 
     while True:
+        if offset >= MAX_OFFSET:
+            print(f"Reached MAX_OFFSET={MAX_OFFSET}, stop paging")
+            break
+
         url = f"{ALPHAS_URL}?limit={limit}&offset={offset}&order=-dateCreated"
         data = wq.get_json(url)
 
-        # 这里按常见 REST 返回处理：可能是 list，也可能是 {"results": [...]}
-        if isinstance(data, dict) and "results" in data:
-            items = data["results"]
-        else:
-            items = data
-
+        items = data["results"] if isinstance(data, dict) else data
         if not items:
             break
 
         for a in items:
-            # 这里字段按你常见的 alpha 结构做容错映射
             out.append({
-                "alpha_id": a.get("id") or a.get("alphaId") or a.get("alpha_id"),
-                "expression": a.get("expression"),
-                "universe": a.get("universe"),
-                "region": a.get("region"),
-                "delay": a.get("delay"),
-                "neutralization": a.get("neutralization"),
-                "created_at": a.get("dateCreated") or a.get("created_at"),
+                "alpha_id": a.get("id"),
+                "expression": (a.get("regular") or {}).get("code"),
+                "universe": (a.get("settings") or {}).get("universe"),
+                "region": (a.get("settings") or {}).get("region"),
+                "delay": (a.get("settings") or {}).get("delay"),
+                "neutralization": (a.get("settings") or {}).get("neutralization"),
+                "created_at": a.get("dateCreated"),
             })
 
+
         offset += len(items)
-        # 可选：防止太快
         time.sleep(0.2)
 
-    # 过滤掉没 id 的脏数据
-    out = [x for x in out if x.get("alpha_id")]
     return out
+def safe_dict(x):
+    return x if isinstance(x, dict) else {}
 
-def get_backtest_metrics(wq: WQClient, alpha_id: str) -> Dict[str, Any]:
-    """
-    你需要把这个 URL 改成你实际的 metrics endpoint。
-    先给一个“你去替换”的模板，不再 NotImplemented。
-    """
-    # 常见形态示例（你自己确认）：
-    # url = f"https://api.worldquantbrain.com/alphas/{alpha_id}/backtest"
-    # 或 url = f"https://api.worldquantbrain.com/alphas/{alpha_id}"
-    url = f"https://platform.worldquantbrain.com/alpha/{alpha_id}"
-
+def get_backtest_metrics(wq: WQClient, alpha_id: str) -> Dict[str, float]:
+    url = f"https://api.worldquantbrain.com/alphas/{alpha_id}"
     data = wq.get_json(url)
 
-    # TODO: 你把这里改成你实际看到的字段路径，比如 data["backtest"]["metrics"]
-    # 先做一个尽量通用的兜底：如果存在 metrics 字段就取出来
     metrics = {}
-    if isinstance(data, dict):
-        if "metrics" in data and isinstance(data["metrics"], dict):
-            metrics = data["metrics"]
-        elif "backtest" in data and isinstance(data["backtest"], dict):
-            bt = data["backtest"]
-            if "metrics" in bt and isinstance(bt["metrics"], dict):
-                metrics = bt["metrics"]
 
-    # 只保留标量（数字）值
-    cleaned: Dict[str, Any] = {}
-    for k, v in metrics.items():
-        if v is None:
-            continue
-        if isinstance(v, (int, float)):
-            cleaned[k] = float(v)
-    return cleaned
+    test = safe_dict(data.get("test"))
+    is_ = safe_dict(data.get("is"))
+
+    test_ic = safe_dict(test.get("investabilityConstrained"))
+    test_rn = safe_dict(test.get("riskNeutralized"))
+
+    is_ic = safe_dict(is_.get("investabilityConstrained"))
+    is_rn = safe_dict(is_.get("riskNeutralized"))
+
+    def extract(prefix: str, d: dict):
+        for k, v in d.items():
+            if isinstance(v, (int, float)):
+                metrics[f"{prefix}_{k}"] = float(v)
+
+    extract("test_ic", test_ic)
+    extract("test_rn", test_rn)
+    extract("is_ic", is_ic)
+    extract("is_rn", is_rn)
+
+    return metrics
 
 # ========== 主逻辑 ==========
 def dump_alphas():

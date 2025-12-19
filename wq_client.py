@@ -54,40 +54,21 @@ class WQClient:
     def post_json(self, url: str, payload: Optional[Dict[str, Any]] = None) -> Any:
         return self._request_json("POST", url, json=payload)
 
-    def _request_json(self, method: str, url: str, **kwargs) -> Any:
-        # allow passing relative paths like "/users/self/alphas"
-        if url.startswith("/"):
-            url = f"{self.base_url}{url}"
+ 
+    def _request_json(self, method: str, url: str):
+        resp = self.session.request(method, url)
 
-        for attempt in range(1, self.max_retries + 1):
-            resp = self.session.request(method, url, timeout=self.timeout, **kwargs)
+        if "application/json" not in resp.headers.get("Content-Type", ""):
+            raise RuntimeError(
+                f"Non-JSON response from {url}\n"
+                f"Status: {resp.status_code}\n"
+                f"Content-Type: {resp.headers.get('Content-Type')}\n"
+                f"Body (first 300 chars):\n{resp.text[:300]}"
+            )
 
-            # handle rate limiting
-            if resp.status_code in (429, 503) and "Retry-After" in resp.headers:
-                try:
-                    wait = float(resp.headers["Retry-After"])
-                except ValueError:
-                    wait = self.backoff_base * attempt
-                time.sleep(wait)
-                continue
+        resp.raise_for_status()
+        return resp.json()
 
-            # transient server errors
-            if resp.status_code >= 500:
-                time.sleep(self.backoff_base * attempt)
-                continue
 
-            # auth expired: re-auth once and retry
-            if resp.status_code in (401, 403):
-                # try re-auth then retry
-                if attempt == 1:
-                    self._authenticate()
-                    continue
-                resp.raise_for_status()
-
-            resp.raise_for_status()
-            # Some endpoints may return empty body; guard
-            if not resp.text.strip():
-                return None
-            return resp.json()
 
         raise RuntimeError(f"Request failed after retries: {method} {url}")
