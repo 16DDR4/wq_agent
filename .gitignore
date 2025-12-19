@@ -1,6 +1,18 @@
-.venv/
+# Python
 __pycache__/
-.env
 *.pyc
-.pgdata/
+*.pyo
+*.pyd
+.venv/
+.env
+
+# Mac
+.DS_Store
+
+# Logs
+*.log
+
+# Local config
+*.local
+
 
