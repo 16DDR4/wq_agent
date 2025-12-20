@@ -1,9 +1,7 @@
 from typing import Dict, Any, List
-from langchain.tools import tool
 
 # resolve_cutoff.py
 
-@tool
 def resolve_cutoff(input: Dict[str, Any]) -> Dict[str, Any]:
     """
     Resolve WorldQuant cutoff rules based on alpha context and metrics.

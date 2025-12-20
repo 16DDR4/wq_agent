@@ -2,7 +2,6 @@ from json import tool
 from typing import Dict
 
 
-@tool
 def simulate_alpha(
     expression: str,
     universe: str = "US",

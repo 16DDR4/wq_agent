@@ -4,7 +4,6 @@ import time
 from typing import List, Dict, Any, Optional
 
 from dotenv import load_dotenv
-from langchain.tools import tool
 
 from wq_client import WQClient
 
@@ -26,7 +25,6 @@ def _get_wq() -> WQClient:
     return _WQ
 
 
-@tool("list_alphas")
 def list_alphas(limit: int = 100, max_pages: int = 5, sleep: float = 0.2) -> List[Dict[str, Any]]:
     """
     Pull alphas from WorldQuant BRAIN account via API.

@@ -1,8 +1,6 @@
-from json import tool
 from typing import Dict
 
 
-@tool
 def get_backtest_metrics(alpha_id: str) -> Dict:
     """
     Get backtest performance metrics of an alpha.
