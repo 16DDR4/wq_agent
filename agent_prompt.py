@@ -23,4 +23,4 @@
 # Show me details of alpha A123
 # """
 
-RESEARCH_PROMPT = "Give me five alpha ids with top 5 sharpe "
+RESEARCH_PROMPT = "How many alphas have been backtested? "
